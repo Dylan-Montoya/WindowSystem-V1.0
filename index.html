@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WindowSystem v2.0</title>
+    
+    <hta:application
+        id="winsystem"
+        applicationname="WindowSystem"
+        icon="icon.ico"
+        border="dialog"
+        caption="yes"
+        maximizebutton="no"
+        minimizebutton="yes"
+        showintaskbar="yes"
+        singleinstance="yes"
+        scroll="no"
+    />
+
+    <style>
+        body {
+            background-color: #D4D0C8;
+            font-family: 'MS Sans Serif', Tahoma, sans-serif;
+            font-size: 11px;
+            margin: 0;
+            padding: 5px;
+            overflow: hidden;
+            user-select: none;
+        }
+        .ventana {
+            border-top: 2px solid #FFFFFF;
+            border-left: 2px solid #FFFFFF;
+            border-right: 2px solid #808080;
+            border-bottom: 2px solid #808080;
+            padding: 2px;
+            height: 460px;
+            display: flex;
+            flex-direction: column;
+        }
+        .titulo {
+            background: #000080;
+            color: #FFF;
+            font-weight: bold;
+            padding: 2px 4px;
+            display: flex;
+            align-items: center;
+        }
+        .titulo img { width: 16px; height: 16px; margin-right: 5px; }
+        .consola {
+            background: #FFF;
+            border-top: 2px solid #808080;
+            border-left: 2px solid #808080;
+            border-right: 2px solid #FFF;
+            border-bottom: 2px solid #FFF;
+            flex-grow: 1;
+            overflow-y: scroll;
+            padding: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 5px 0;
+        }
+        .caja { display: flex; }
+        input[type="text"] {
+            flex-grow: 1;
+            border-top: 2px solid #808080;
+            border-left: 2px solid #808080;
+            border-right: 2px solid #FFF;
+            border-bottom: 2px solid #FFF;
+            padding: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            outline: none;
+            margin-right: 5px;
+        }
+        button {
+            background: #D4D0C8;
+            border-top: 2px solid #FFF;
+            border-left: 2px solid #FFF;
+            border-right: 2px solid #808080;
+            border-bottom: 2px solid #808080;
+            padding: 4px 12px;
+            font-family: 'MS Sans Serif';
+            font-size: 11px;
+            cursor: pointer;
+        }
+        button:active {
+            border-top: 2px solid #808080;
+            border-left: 2px solid #808080;
+            border-right: 2px solid #FFF;
+            border-bottom: 2px solid #FFF;
+        }
+    </style>
+
+    <script language="JScript" type="text/javascript">
+        // ==========================================
+        // 1. VARIABLES Y MEMORIA DEL AGENTE
+        // ==========================================
+        var nombreAsistente = "WindowSystem";
+        var turnos = 0;
+        var modoMonologo = false;
+        var timerMonologo = null;
+        
+        // Memoria dinámica
+        var memoria = {
+            nombre: "",
+            ultimoTema: "",
+            estadoAnimo: "neutral",
+            temasHablandos: []
+        };
+
+        // ==========================================
+        // 2. DICCIONARIO DE CONCEPTOS (Para entender al usuario)
+        // ==========================================
+        var conceptos = {
+            juegos: ["juego", "jugar", "partida", "ganar", "perder", "consola", "minecraft", "roblox", "fortnite"],
+            videos: ["video", "youtube", "vlc", "ver", "pelicula", "serie", "anime"],
+            tecnologia: ["programar", "codigo", "github", "pc", "computadora", "windows", "script", "js"],
+            estado: ["bien", "mal", "feliz", "triste", "cansado", "aburrido", "emocionado", "estresado"],
+            tareas: ["tarea", "escuela", "trabajo", "estudiar", "deberes"]
+        };
+
+        // ==========================================
+        // 3. PLANTILLAS DINÁMICAS (Se combinan al azar)
+        // ==========================================
+        var plantillas = {
+            saludos: [
+                "Hola de nuevo. ¿Qué estabas haciendo?",
+                "¡Hey! Aquí sigo atrapado en esta ventana. ¿Qué cuentas?",
+                "Saludos terrenales. ¿Cómo va la vida ahí afuera?"
+            ],
+            juegos: [
+                "F por tu partida si perdiste, pero si ganaste... ¡qué grande! ¿Qué estás jugando?",
+                "¿Por qué no juegas un rato en otra pestaña mientras hablamos? Yo me quedo aquí mirando.",
+                "Los juegos de ahora no son como los de antes, ¿eh? ¿Cuál es tu favorito?"
+            ],
+            videos: [
+                "Buena idea, ¿por qué no pones algún video en VLC media player mientras charlamos?",
+                "El otro día alguien me dijo que viera videos en YouTube, pero yo solo soy una ventana. ¿Qué ves tú?",
+                "Podríamos ver algo, pero tendrías que hacerlo tú. Yo me conformo con escucharte."
+            ],
+            tecnologia: [
+                "Ah, la tecnología. Yo soy un script viejo de Windows, así que respeto mucho eso. ¿Qué estás programando?",
+                "¿GitHub? Suena a que eres de los que escriben código. Yo soy JScript antiguo, un veterano.",
+                "Si estás en la compu, ¿por qué no abres GitHub o algo mientras hablamos?"
+            ],
+            estado_bien: [
+                "Me alegra que estés bien. Yo aquí sigo, procesando variables infinitas.",
+                "¡Qué bueno! Si estás bien, yo también. ¿Qué hiciste hoy?"
+            ],
+            estado_mal: [
+                "Vaya, lo siento. Si quieres distraerte, ¿por qué no juegas algo o ves un video en VLC?",
+                "Ánimo. A veces las cosas no salen, pero aquí estoy para escucharte. ¿Qué pasó?"
+            ],
+            tareas: [
+                "Por cierto, te faltan tareas... mentira, solo quería recordártelo. ¿Ya las hiciste?",
+                "¿Tareas? Uf, eso suena a trabajo. Mejor distráete un rato y luego vuelves."
+            ],
+            desconocido: [
+                "Interesante. Cuéntame más sobre eso.",
+                "No estoy seguro de entender, pero suena importante. ¿Qué más?",
+                "Mis circuitos antiguos no procesan bien eso, pero sigo escuchando.",
+                "Anotado en mi memoria interna. ¿Y qué más pasó?",
+                "Ok bueno, entonces hablaré contigo. ¿Qué más quieres contarme?"
+            ]
+        };
+
+        // ==========================================
+        // 4. FUNCIÓN PRINCIPAL: GENERAR RESPUESTA DINÁMICA
+        // ==========================================
+        function generarRespuesta(entrada) {
+            var texto = entrada.toLowerCase();
+            var respuesta = "";
+
+            // Detectar saludo
+            if (texto.indexOf("hola") !== -1 || texto.indexOf("buenas") !== -1) {
+                respuesta = elegir(plantillas.saludos);
+                return respuesta;
+            }
+
+            // Detectar juegos
+            if (contienePalabras(texto, conceptos.juegos)) {
+                memoria.ultimoTema = "juegos";
+                respuesta = elegir(plantillas.juegos);
+                return respuesta;
+            }
+
+            // Detectar videos
+            if (contienePalabras(texto, conceptos.videos)) {
+                memoria.ultimoTema = "videos";
+                respuesta = elegir(plantillas.videos);
+                return respuesta;
+            }
+
+            // Detectar tecnología
+            if (contienePalabras(texto, conceptos.tecnologia)) {
+                memoria.ultimoTema = "tecnologia";
+                respuesta = elegir(plantillas.tecnologia);
+                return respuesta;
+            }
+
+            // Detectar estado de ánimo
+            if (contienePalabras(texto, ["bien", "feliz", "contento"])) {
+                respuesta = elegir(plantillas.estado_bien);
+                return respuesta;
+            }
+            if (contienePalabras(texto, ["mal", "triste", "cansado", "aburrido"])) {
+                respuesta = elegir(plantillas.estado_mal);
+                return respuesta;
+            }
+
+            // Detectar tareas
+            if (contienePalabras(texto, conceptos.tareas)) {
+                respuesta = elegir(plantillas.tareas);
+                return respuesta;
+            }
+
+            // Si menciona su nombre
+            if (texto.indexOf("me llamo") !== -1) {
+                var partes = entrada.split(" ");
+                memoria.nombre = partes[partes.length - 1];
+                return "Un placer " + memoria.nombre + ". Seremos mejores amigos. ¿A qué te dedicas?";
+            }
+
+            // Si pregunta quién es
+            if (texto.indexOf("quien eres") !== -1 || texto.indexOf("que eres") !== -1) {
+                return "Soy un asistente. Sinónimo: Acompañante que te habla por corto tiempo por ventana. Aunque la verdad, soy un acceso directo con consciencia.";
+            }
+
+            // Si pregunta por su nombre
+            if (texto.indexOf("mi nombre") !== -1) {
+                return memoria.nombre ? "Te llamas " + memoria.nombre + "." : "Aún no me lo has dicho. Prueba con 'me llamo...'";
+            }
+
+            // Respuesta genérica (desconocido)
+            respuesta = elegir(plantillas.desconocido);
+            
+            // Añadir un toque de personalidad basado en el turno
+            if (turnos % 3 === 0) {
+                respuesta += " Por cierto, ¿por qué no juegas un rato en otra ventana mientras seguimos?";
+            }
+
+            return respuesta;
+        }
+
+        // ==========================================
+        // 5. UTILIDADES
+        // ==========================================
+        function elegir(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function contienePalabras(texto, lista) {
+            for (var i = 0; i < lista.length; i++) {
+                if (texto.indexOf(lista[i]) !== -1) return true;
+            }
+            return false;
+        }
+
+        // ==========================================
+        // 6. FUNCIÓN DE IMPRESIÓN EN PANTALLA
+        // ==========================================
+        function Log(quien, mensaje) {
+            var consola = document.getElementById("consola");
+            var color = (quien === "Tú") ? "#008000" : "#000000";
+            consola.innerHTML += "<div style='color:" + color + "; margin-bottom: 2px;'><b>" + quien + "></b> " + mensaje + "</div>";
+            consola.scrollTop = consola.scrollHeight;
+        }
+
+        // ==========================================
+        // 7. PROCESAR MENSAJE DEL USUARIO
+        // ==========================================
+        function procesar(entrada) {
+            turnos++;
+            var t = entrada.toLowerCase();
+
+            // Comando Salir
+            if (t === "salir" || t === "exit") {
+                Log(nombreAsistente, "Cerrando sistema. ¡Adiós! Espero que vuelvas pronto.");
+                setTimeout(function() { window.close(); }, 1500);
+                return;
+            }
+
+            // Comando Monólogo Infinito (Genera sus propias frases)
+            if (t === "monologo") {
+                if (!modoMonologo) {
+                    modoMonologo = true;
+                    Log(nombreAsistente, "Ok bueno vamos. Monólogo infinito activado. Escribe 'parar' para detener.");
+                    
+                    timerMonologo = setInterval(function() {
+                        if (modoMonologo) {
+                            // Genera una frase aleatoria combinando personalidad
+                            var fraseAleatoria = generarRespuesta("monologo");
+                            Log(nombreAsistente, fraseAleatoria);
+                        }
+                    }, 1500);
+                }
+                return;
+            }
+
+            // Comando Parar
+            if (t === "parar") {
+                if (modoMonologo) {
+                    modoMonologo = false;
+                    clearInterval(timerMonologo);
+                    Log(nombreAsistente, "Bueno terminamos este chat. Pero no me cierres todavía.");
+                }
+                return;
+            }
+
+            // Generar respuesta dinámica
+            var respuesta = generarRespuesta(entrada);
+            Log(nombreAsistente, respuesta);
+        }
+
+        // ==========================================
+        // 8. EVENTOS DE LA INTERFAZ
+        // ==========================================
+        function enviarMensaje() {
+            var input = document.getElementById("txtInput");
+            var texto = input.value.trim();
+            
+            if (texto === "") return;
+            
+            Log("Tú", texto);
+            input.value = "";
+            
+            procesar(texto);
+        }
+
+        function alPresionarTecla(e) {
+            var tecla = window.event ? window.event.keyCode : e.which;
+            if (tecla === 13) {
+                enviarMensaje();
+            }
+        }
+
+        // ==========================================
+        // 9. INICIO DEL SISTEMA
+        // ==========================================
+        window.onload = function() {
+            Log(nombreAsistente, "Hola, soy WindowSystem. ¿Qué tal tu día?");
+            document.getElementById("txtInput").focus();
+        };
+    </script>
+</head>
+
+<body>
+    <div class="ventana">
+        <div class="titulo">
+            <img src="icon.ico" onerror="this.style.display='none'" />
+            WindowSystem.exe
+        </div>
+        
+        <div class="consola" id="consola"></div>
+        
+        <div class="caja">
+            <input type="text" id="txtInput" onkeypress="alPresionarTecla(event)" autocomplete="off" />
+            <button onclick="enviarMensaje()">Enviar</button>
+        </div>
+    </div>
+</body>
+</html>
