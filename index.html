@@ -69,9 +69,41 @@
             line-height: 1.45;
         }
 
-        .mensaje { margin-bottom: 5px; }
+        .mensaje { margin-bottom: 8px; overflow-wrap: anywhere; }
         .usuario { color: #008000; }
         .asistente { color: #111; }
+
+        .imagen-mensaje {
+            display: block;
+            max-width: min(100%, 320px);
+            max-height: 240px;
+            margin: 5px 0 0 4px;
+            object-fit: contain;
+        }
+
+        .compositor { display: grid; gap: 5px; }
+
+        .vista-previa {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            padding: 5px;
+            background: var(--white);
+            border: 1px solid var(--dark);
+        }
+
+        .vista-previa[hidden] { display: none; }
+
+        .vista-previa img {
+            width: 48px;
+            height: 48px;
+            flex: 0 0 48px;
+            object-fit: cover;
+        }
+
+        .detalle-imagen { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+        .estado-imagen { min-height: 14px; color: #800000; }
 
         .caja {
             display: flex;
@@ -110,9 +142,14 @@
             border-bottom: 2px solid var(--white);
         }
 
+        #btnImagen { min-width: 36px; font-size: 20px; line-height: 1; }
+        #btnQuitarImagen { min-width: 30px; height: 30px; }
+        #selectorImagen { display: none; }
+
         @media (max-width: 500px) {
-            .caja { flex-direction: column; }
-            button { height: 30px; }
+            .caja { gap: 4px; }
+            .caja button { min-width: 58px; height: 30px; }
+            #btnImagen { min-width: 36px; }
         }
     </style>
 </head>
@@ -125,9 +162,22 @@
 
         <div class="consola" id="consola" role="log" aria-live="polite"></div>
 
-        <div class="caja">
-            <input type="text" id="txtInput" autocomplete="off" placeholder="Escribe un mensaje..." aria-label="Mensaje">
-            <button id="btnEnviar" type="button">Enviar</button>
+        <div class="compositor">
+            <div class="vista-previa" id="vistaPrevia" hidden>
+                <img id="miniaturaImagen" alt="Vista previa de la imagen">
+                <div class="detalle-imagen">
+                    <div id="nombreImagen"></div>
+                    <div id="tamanoImagen"></div>
+                </div>
+                <button id="btnQuitarImagen" type="button" aria-label="Quitar imagen">×</button>
+            </div>
+            <div class="estado-imagen" id="estadoImagen" role="status" aria-live="polite"></div>
+            <div class="caja">
+                <input type="file" id="selectorImagen" accept="image/*">
+                <button id="btnImagen" type="button" aria-label="Adjuntar imagen" title="Adjuntar imagen">+</button>
+                <input type="text" id="txtInput" autocomplete="off" placeholder="Escribe un mensaje..." aria-label="Mensaje">
+                <button id="btnEnviar" type="button">Enviar</button>
+            </div>
         </div>
     </div>
 
@@ -136,6 +186,10 @@
         var turnos = 0;
         var modoMonologo = false;
         var timerMonologo = null;
+        var imagenSeleccionada = null;
+        var urlImagenSeleccionada = null;
+        var urlsImagenesEnviadas = [];
+        var limiteImagenBytes = 500 * 1024 * 1024;
 
         var memoria = {
             nombre: "",
@@ -333,13 +387,20 @@
             return respuesta;
         }
 
-        function Log(quien, mensaje) {
+        function Log(quien, mensaje, urlImagen) {
             var consola = document.getElementById("consola");
             var clase = quien === "Tú" ? "usuario" : "asistente";
             var linea = document.createElement("div");
             linea.className = "mensaje " + clase;
             linea.innerHTML = "<b>" + quien + ">&nbsp;</b>";
             linea.appendChild(document.createTextNode(mensaje));
+            if (urlImagen) {
+                var imagen = document.createElement("img");
+                imagen.className = "imagen-mensaje";
+                imagen.src = urlImagen;
+                imagen.alt = "Imagen adjunta";
+                linea.appendChild(imagen);
+            }
             consola.appendChild(linea);
             consola.scrollTop = consola.scrollHeight;
         }
@@ -381,20 +442,76 @@
             Log(nombreAsistente, generarRespuesta(entrada));
         }
 
+        function limpiarImagenSeleccionada() {
+            if (urlImagenSeleccionada) URL.revokeObjectURL(urlImagenSeleccionada);
+            imagenSeleccionada = null;
+            urlImagenSeleccionada = null;
+            document.getElementById("selectorImagen").value = "";
+            document.getElementById("vistaPrevia").hidden = true;
+            document.getElementById("miniaturaImagen").removeAttribute("src");
+            document.getElementById("nombreImagen").textContent = "";
+            document.getElementById("tamanoImagen").textContent = "";
+        }
+
+        function seleccionarImagen(evento) {
+            var archivo = evento.target.files[0];
+            var estado = document.getElementById("estadoImagen");
+            estado.textContent = "";
+            if (!archivo) return;
+
+            if (!archivo.type || archivo.type.indexOf("image/") !== 0) {
+                limpiarImagenSeleccionada();
+                estado.textContent = "Elige un archivo de imagen válido.";
+                return;
+            }
+
+            if (archivo.size > limiteImagenBytes) {
+                limpiarImagenSeleccionada();
+                estado.textContent = "La imagen supera el límite de 500 MB.";
+                return;
+            }
+
+            limpiarImagenSeleccionada();
+            imagenSeleccionada = archivo;
+            urlImagenSeleccionada = URL.createObjectURL(archivo);
+            document.getElementById("miniaturaImagen").src = urlImagenSeleccionada;
+            document.getElementById("nombreImagen").textContent = archivo.name;
+            document.getElementById("tamanoImagen").textContent = (archivo.size / (1024 * 1024)).toFixed(2) + " MB";
+            document.getElementById("vistaPrevia").hidden = false;
+        }
+
         function enviarMensaje() {
             var input = document.getElementById("txtInput");
             var texto = input.value.trim();
-            if (texto === "") return;
+            if (texto === "" && !imagenSeleccionada) return;
 
-            Log("Tú", texto);
+            var urlImagen = null;
+            if (imagenSeleccionada) {
+                urlImagen = urlImagenSeleccionada;
+                urlsImagenesEnviadas.push(urlImagen);
+                Log("Tú", texto || "Imagen adjunta: " + imagenSeleccionada.name, urlImagen);
+                limpiarImagenSeleccionada();
+            } else {
+                Log("Tú", texto);
+            }
+
             input.value = "";
-            procesar(texto);
+            if (texto !== "") procesar(texto);
             input.focus();
         }
 
+        document.getElementById("btnImagen").addEventListener("click", function () {
+            document.getElementById("selectorImagen").click();
+        });
+        document.getElementById("selectorImagen").addEventListener("change", seleccionarImagen);
+        document.getElementById("btnQuitarImagen").addEventListener("click", limpiarImagenSeleccionada);
         document.getElementById("btnEnviar").addEventListener("click", enviarMensaje);
         document.getElementById("txtInput").addEventListener("keydown", function (evento) {
             if (evento.key === "Enter") enviarMensaje();
+        });
+        window.addEventListener("beforeunload", function () {
+            urlsImagenesEnviadas.forEach(function (url) { URL.revokeObjectURL(url); });
+            if (urlImagenSeleccionada) URL.revokeObjectURL(urlImagenSeleccionada);
         });
 
         window.onload = function () {
